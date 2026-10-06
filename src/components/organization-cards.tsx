@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardDescription, CardTitle } from "./ui/card"
 import { ArrowRight, Building } from "lucide-react"
 
@@ -12,8 +13,8 @@ export function OrganizationCards({ organizations }: {
 }) {
     return (
         <div>
-            {organizations.map((organization, index) => (
-                <div key={index}>
+            {organizations.map((organization) => (
+                <Link key={organization.title} href={`organizations/${organization.title.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '')}`}>
                     <Card className="mt-6 p-6">
                         <div className="flex justify-between items-center">
                             <div className="flex">
@@ -38,7 +39,7 @@ export function OrganizationCards({ organizations }: {
                                 </div>
                         </div>
                     </Card>
-                </div>
+                </Link>
             ))}
         </div>
     )

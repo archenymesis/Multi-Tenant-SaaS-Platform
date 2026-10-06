@@ -3,7 +3,7 @@ import { Button } from "./ui/button"
 
 export function Header({ children }: { children?: React.ReactNode }){
   return(
-    <header className="header sticky top-0 z-50 w-full border-b backdrop-blur px-20">
+    <header className="header sticky top-0 z-50 w-full border-b backdrop-blur px-32">
       <div className="container h-14 flex items-center justify-between">
         <p className="font-black text-xl">Multi-Tenant</p>
         <div className="space-x-2 flex flex-row items-center">
