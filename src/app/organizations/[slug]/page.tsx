@@ -8,7 +8,7 @@ export default async function SlugPage(
     ){
 
     const { slug } = await params
-    const docs = false
+    const docs = true
 
     return (
         <div>
