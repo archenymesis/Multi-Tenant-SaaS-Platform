@@ -14,11 +14,58 @@ datasource db {
 }
 
 model User {
-  id        String @id @default(cuid())
-  clerkId   String @unique
-  email     String @unique
-  firstName String?
-  lastName  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String @id @default(cuid())
+  clerkId     String @unique
+  email       String @unique
+  firstName   String?
+  lastName    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships OrganizationMember[]
+  documents   Document[]
+}
+
+model Organization {
+  id               String @id @default(cuid())
+  organizationName String
+  slug             String @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  members          OrganizationMember[]
+  documents        Document[]
+}
+
+model OrganizationMember {
+  id             String @id @default(cuid())
+  role           String @default("member")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User @relation(fields: [userId], references: [id])
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+}
+
+model Document {
+  id             String @id @default(cuid())
+  documentName   String
+  content        String?
+  fileUrl        String?
+  fileSize       Int?     
+  fileType       String?  
+  aiSummary      String?
+  aiKeywords     String[]
+  sentiment      String?
+  userId         String
+  user           User @relation(fields: [userId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
