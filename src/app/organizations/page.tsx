@@ -1,9 +1,11 @@
+'use client'
+
 import { Header } from "@/components/header"
 import { Organization, OrganizationCards } from "@/components/organization-cards"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { auth } from "@clerk/nextjs/server"
+import { RedirectToSignIn, useAuth, useUser } from "@clerk/nextjs"
 import { Building, Plus } from "lucide-react"
 
 const organizations: Organization[] = [
@@ -25,15 +27,19 @@ const organizations: Organization[] = [
 ]
 
 
-export default async function Organizations() {
-    const { userId } = await auth.protect()
+export default function Organizations() {
+    const { isLoaded, isSignedIn } = useAuth()
+    const { user } = useUser()
+    if (!isLoaded) return <div>Loading...</div>
+    if (!isSignedIn) return <RedirectToSignIn />
+    
     return (
         <div className="relative z-20">
             <Header />
             <div className="flex flex-col items-center">
 
                 <div className="text-center mb-10 mt-14">
-                    <h1 className="font-bold text-4xl mb-1">Welcome, Joe!</h1>
+                    <h1 className="font-bold text-4xl mb-1">Welcome, {user?.firstName}!</h1>
                     <p>Select or create an organization</p>
                 </div>
 

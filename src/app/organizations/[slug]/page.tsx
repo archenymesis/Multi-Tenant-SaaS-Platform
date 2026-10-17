@@ -1,14 +1,22 @@
+'use client'
+
 import { Header } from "@/components/header";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@base-ui/react";
+import { RedirectToSignIn, useAuth, useUser } from "@clerk/nextjs";
 import { ArrowRight, Brain, FileText, Upload } from "lucide-react";
+import { use } from "react";
 
-export default async function SlugPage(
+export default function SlugPage(
     { params }: { params: Promise<{ slug: string }> }
     ){
 
-    const { slug } = await params
+    const { slug } = use(params)
     const docs = true
+    const { isLoaded, isSignedIn } = useAuth()
+    const { user } = useUser()
+    if (!isLoaded) return <div>Loading...</div>
+    if (!isSignedIn) return <RedirectToSignIn />
 
     return (
         <div>

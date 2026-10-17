@@ -9,10 +9,11 @@ import { Field, FieldGroup } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete, FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger } from "@/components/ui/file-upload";
-import React, { use } from "react";
+import React, { use, useState } from "react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ReactMarkdown from 'react-markdown';
+import { RedirectToSignIn, useAuth, useUser } from "@clerk/nextjs";
 
 export default function Documents(
     { params }: { params: Promise<{ slug: string }> }
@@ -25,12 +26,47 @@ export default function Documents(
     const analyzed = true
     const analyzed_text = `Here are 5 important questions and their answers based on the document:\n**Question:** What is the primary objective of the Al-powered customer support system? Answer: The primary objective is to reduce response times by 60% and improve customer satisfaction scores by 40%.\n**Question:** What are the key current problems that this project aims to solve for Tech Innovations Inc.? Answer: The project aims to address an average response time of 8 hours, a decline in customer satisfaction scores from 4.2 to 3.7, and a 25% increase in staff burnout rates due to repetitive query volume.\n**Question:** What is the total estimated budget for the initial implementation of the system and are there any recurring costs? Answer: The total estimated budget for implementation is $150,000. There is a recurring annual cost of $15,000 for Al model licensing.\n**Question:** What is the projected timeline for the full deployment of the Al-powered customer support system? Answer: The full deployment and optimization are projected to be completed within 20 weeks, following a four-phase implementation plan.\n**Question:** What are the high-priority risks identified for this project? Answer: The high-priority risks include integration challenges with legacy systems, customer resistance to Al interactions, data privacy compliance requirements, and staff training and adoption hurdles.`
     console.log(files[0])
+    const { isLoaded, isSignedIn } = useAuth()
+    const { user } = useUser()
+    if (!isLoaded) return <div>Loading...</div>
+    if (!isSignedIn) return <RedirectToSignIn />
     
     const onFileReject = React.useCallback((file: File, message: string) => {
         toast(message, {
         description: `"${file.name.length > 20 ? `${file.name.slice(0, 20)}...` : file.name}" has been rejected`,
         });
     }, []);
+
+    const [documentName, setDocumentName] = React.useState<string>("")
+    const handleUpload = async () => {
+        const formData = new FormData()
+        formData.append("name", documentName)
+        formData.append("organizationId", slug)
+
+        if(files){
+            formData.append("file", files[0])
+        }
+
+        try {
+            const response = await fetch("/api/documents", {
+                method: "POST",
+                body: formData
+            })
+        } catch (error) {
+            console.error("Upload error: ", error)
+        } finally {
+            // setUploading(false);
+        }
+        
+    }
+    // console.log(files[0]?.name)
+    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if(!file) return
+
+        // setFiles(file)
+        setDocumentName(file.name.replace(/\.[^/.]+$/, ""))
+    }
 
     return (
         <div>
@@ -72,11 +108,12 @@ export default function Documents(
                                         <FieldGroup>
                                             <Field className="mt-5">
                                                 <Label htmlFor="name-1">Document Name &#42;</Label>
-                                                <Input className="mt-1.5" id="name-1" name="name" placeholder="Enter document name" />
+                                                <Input value={documentName} onChange={(e) => setDocumentName(e.target.value)} className="mt-1.5" id="name-1" name="name" placeholder="Enter document name" />
                                             </Field>
                                             <Field>
                                                 <Label htmlFor="file-1">Upload File</Label>
                                                 <FileUpload
+                                                    name={files[0]?.name.replace(/\.[^/.]+$/, "")}
                                                     maxFiles={1}
                                                     maxSize={10 * 1024 * 1024}
                                                     className="w-full max-w-md"
@@ -134,7 +171,7 @@ export default function Documents(
                                     </form>
                                     <DialogFooter>
                                         <DialogClose render={<Button variant="outline">Cancel</Button>} />
-                                        <Button className="text-sm px-4 py-2 rounded-md cursor-pointer bg-accent-foreground text-accent hover:bg-accent-foreground/80 font-medium flex flex-row items-center">
+                                        <Button onClick={handleUpload} className="text-sm px-4 py-2 rounded-md cursor-pointer bg-accent-foreground text-accent hover:bg-accent-foreground/80 font-medium flex flex-row items-center">
                                             <Upload size={18} />
                                             <p className="ml-1.5">Upload Document</p>
                                         </Button>
