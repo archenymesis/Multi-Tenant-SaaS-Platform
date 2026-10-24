@@ -28,8 +28,6 @@ export default function Documents(
     console.log(files[0])
     const { isLoaded, isSignedIn } = useAuth()
     const { user } = useUser()
-    if (!isLoaded) return <div>Loading...</div>
-    if (!isSignedIn) return <RedirectToSignIn />
     
     const onFileReject = React.useCallback((file: File, message: string) => {
         toast(message, {
@@ -67,6 +65,9 @@ export default function Documents(
         // setFiles(file)
         setDocumentName(file.name.replace(/\.[^/.]+$/, ""))
     }
+
+    if (!isLoaded) return <div>Loading...</div>
+    if (!isSignedIn) return <RedirectToSignIn />
 
     return (
         <div>
