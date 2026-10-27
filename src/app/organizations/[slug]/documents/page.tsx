@@ -13,17 +13,18 @@ import React, { use, useState } from "react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ReactMarkdown from 'react-markdown';
-import { RedirectToSignIn, useAuth, useUser } from "@clerk/nextjs";
+import { RedirectToSignIn, useAuth, useOrganization, useUser } from "@clerk/nextjs";
 
 export default function Documents(
     { params }: { params: Promise<{ slug: string }> }
     ){
 
+    const { organization } = useOrganization()
     const { slug } = use(params)
     const [files, setFiles] = React.useState<File[]>([]);
     const [expanded, setExpanded] = React.useState<Boolean>(true)
     const existdoc = true
-    const analyzed = true
+    const analyzed = false
     const analyzed_text = `Here are 5 important questions and their answers based on the document:\n**Question:** What is the primary objective of the Al-powered customer support system? Answer: The primary objective is to reduce response times by 60% and improve customer satisfaction scores by 40%.\n**Question:** What are the key current problems that this project aims to solve for Tech Innovations Inc.? Answer: The project aims to address an average response time of 8 hours, a decline in customer satisfaction scores from 4.2 to 3.7, and a 25% increase in staff burnout rates due to repetitive query volume.\n**Question:** What is the total estimated budget for the initial implementation of the system and are there any recurring costs? Answer: The total estimated budget for implementation is $150,000. There is a recurring annual cost of $15,000 for Al model licensing.\n**Question:** What is the projected timeline for the full deployment of the Al-powered customer support system? Answer: The full deployment and optimization are projected to be completed within 20 weeks, following a four-phase implementation plan.\n**Question:** What are the high-priority risks identified for this project? Answer: The high-priority risks include integration challenges with legacy systems, customer resistance to Al interactions, data privacy compliance requirements, and staff training and adoption hurdles.`
     console.log(files[0])
     const { isLoaded, isSignedIn } = useAuth()
@@ -37,9 +38,22 @@ export default function Documents(
 
     const [documentName, setDocumentName] = React.useState<string>("")
     const handleUpload = async () => {
+
+        if (!organization || !user || !setFiles) {
+            console.error("Please select a file")
+            return
+        }
+
+        if (!documentName.trim()) {
+            console.error("Please enter a document name")
+            return
+        }
+
+        // setisuploading(true)
+
         const formData = new FormData()
         formData.append("name", documentName)
-        formData.append("organizationId", slug)
+        formData.append("organizationId", organization.id)
 
         if(files){
             formData.append("file", files[0])
@@ -50,6 +64,19 @@ export default function Documents(
                 method: "POST",
                 body: formData
             })
+
+            if (response.ok) {
+                console.log("Document uploaded successfully")
+
+                setDocumentName("")
+                // setFiles(null)
+                // setisopen(false)
+
+                // onuploadsuccess?.()
+            } else {
+                const error = await response.json()
+                console.error(error.error || "Upload failed")
+            }
         } catch (error) {
             console.error("Upload error: ", error)
         } finally {
