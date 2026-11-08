@@ -4,16 +4,18 @@ import { Header } from "@/components/header";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Brain, Calendar, ChevronDown, CreditCardIcon, Download, File, FileText, Hash, List, LogOutIcon, MessageCircle, MessageSquare, SettingsIcon, Sparkles, Tag, Trash, Upload, UserIcon, UserRound, X } from "lucide-react";
+import { Brain, Calendar, ChevronDown, Download, File, FileText, Hash, List, MessageCircle, MessageSquare, Sparkles, Tag, Trash, Upload, UserRound, X } from "lucide-react";
 import { Field, FieldGroup } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete, FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger } from "@/components/ui/file-upload";
-import React, { use, useState } from "react";
+import React, { use, useEffect } from "react";
 import { toast } from "sonner";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ReactMarkdown from 'react-markdown';
 import { RedirectToSignIn, useAuth, useOrganization, useUser } from "@clerk/nextjs";
+import { AnalysisType, Document } from "../../../../../types";
+import { analysisTypes, formatFileSize } from "@/app/data/data";
 
 export default function Documents(
     { params }: { params: Promise<{ slug: string }> }
@@ -21,14 +23,77 @@ export default function Documents(
 
     const { organization } = useOrganization()
     const { slug } = use(params)
+    const [ documents, setDocuments ] = React.useState<Document[]>([])
+    const [selectedAnalysisType, setSelectedAnalysisType] = React.useState<AnalysisType>("summary")
+    const [ isAnalyzing, setIsAnalyzing ] = React.useState<string | null>(null)
     const [files, setFiles] = React.useState<File[]>([]);
-    const [expanded, setExpanded] = React.useState<Boolean>(true)
-    const existdoc = true
-    const analyzed = false
-    const analyzed_text = `Here are 5 important questions and their answers based on the document:\n**Question:** What is the primary objective of the Al-powered customer support system? Answer: The primary objective is to reduce response times by 60% and improve customer satisfaction scores by 40%.\n**Question:** What are the key current problems that this project aims to solve for Tech Innovations Inc.? Answer: The project aims to address an average response time of 8 hours, a decline in customer satisfaction scores from 4.2 to 3.7, and a 25% increase in staff burnout rates due to repetitive query volume.\n**Question:** What is the total estimated budget for the initial implementation of the system and are there any recurring costs? Answer: The total estimated budget for implementation is $150,000. There is a recurring annual cost of $15,000 for Al model licensing.\n**Question:** What is the projected timeline for the full deployment of the Al-powered customer support system? Answer: The full deployment and optimization are projected to be completed within 20 weeks, following a four-phase implementation plan.\n**Question:** What are the high-priority risks identified for this project? Answer: The high-priority risks include integration challenges with legacy systems, customer resistance to Al interactions, data privacy compliance requirements, and staff training and adoption hurdles.`
-    console.log(files[0])
+    const [expanded, setExpanded] = React.useState<Boolean>(false)
+    const [docContent, setDocContent] = React.useState("")
     const { isLoaded, isSignedIn } = useAuth()
     const { user } = useUser()
+
+    const fetchDocuments = async () => {
+        if (!organization) return
+        // setisloading(true)
+
+        try {
+            const response = await fetch(`/api/documents?organizationId=${organization.id}`)
+            if (response.ok) {
+                const data = await response.json()
+                setDocuments(data.documents)
+            }
+        } catch (error) {
+            console.error("Failed to fetch documents:", error)
+            toast.error("Failed to load documents")
+        } finally {
+            // setIsLoading(true)
+        }
+    }
+
+    useEffect(() => {
+        fetchDocuments()
+        console.log("All Documents: ", documents)
+    }, [organization])
+
+    const handleAnalyze = async (documentId: string) => {
+        if (!organization) return
+
+        setIsAnalyzing(documentId)
+        try {
+            const response = await fetch("/api/analyze", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    documentId,
+                    organizationId: organization.id,
+                    analysisType: selectedAnalysisType
+                })
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                const analysisTypeLabel = analysisTypes.find(
+                    (type) => type.value === selectedAnalysisType
+                )?.label;
+            
+
+            toast.success(
+                `${analysisTypeLabel || "Document"} analysis completed successfully!`
+            )
+            fetchDocuments()
+
+            // setExpandedSummaries()
+            } else {
+                const error = await response.json()
+                toast.error(error.error || "Analysis failed")
+            }
+        } catch (error) {
+            console.error("Analysis error:", error)
+            toast.error("Analysis failed")
+        } finally {
+            setIsAnalyzing(null)
+        }
+    }
     
     const onFileReject = React.useCallback((file: File, message: string) => {
         toast(message, {
@@ -54,6 +119,7 @@ export default function Documents(
         const formData = new FormData()
         formData.append("name", documentName)
         formData.append("organizationId", organization.id)
+        formData.append("content", docContent)
 
         if(files){
             formData.append("file", files[0])
@@ -69,10 +135,7 @@ export default function Documents(
                 console.log("Document uploaded successfully")
 
                 setDocumentName("")
-                // setFiles(null)
                 // setisopen(false)
-
-                // onuploadsuccess?.()
             } else {
                 const error = await response.json()
                 console.error(error.error || "Upload failed")
@@ -80,7 +143,7 @@ export default function Documents(
         } catch (error) {
             console.error("Upload error: ", error)
         } finally {
-            // setUploading(false);
+            // setUploading(false)
         }
         
     }
@@ -93,6 +156,12 @@ export default function Documents(
         setDocumentName(file.name.replace(/\.[^/.]+$/, ""))
     }
 
+    const getAnalysisIcon = (type: AnalysisType) => {
+        const analysisType = analysisTypes.find((t) => t.value === type)
+        const Icon = analysisType?.icon || Sparkles
+        return <Icon size={18} />
+    }
+
     if (!isLoaded) return <div>Loading...</div>
     if (!isSignedIn) return <RedirectToSignIn />
 
@@ -103,7 +172,7 @@ export default function Documents(
                 
                 <Card className="flex flex-row justify-between items-center p-6">
                     <div className="flex flex-col">
-                        <CardTitle className="font-bold text-xl">Sales</CardTitle>
+                        <CardTitle className="font-bold text-xl">{organization?.name}</CardTitle>
                         <CardDescription>Organization workspace</CardDescription>
                     </div>
                     <div>
@@ -117,7 +186,7 @@ export default function Documents(
                     <div className="flex flex-row justify-between items-center">
                         <div className="flex flex-col">
                             <div className="font-extrabold text-2xl">Documents</div>
-                            <p className="text-sm mt-1">Upload and analyze documents in Sales</p>
+                            <p className="text-sm mt-1">Upload and analyze documents in {organization?.name}</p>
                         </div>
 
                             <Dialog>
@@ -208,7 +277,7 @@ export default function Documents(
                             </Dialog>
                     </div>
 
-                    {!existdoc ? (<Card className="flex flex-col p-7 pt-6 mt-6">
+                    {!documents ? (<Card className="flex flex-col p-7 pt-6 mt-6">
                         <div className="flex flex-col">
                             <div>
                                 <div className="flex items-center">
@@ -225,18 +294,18 @@ export default function Documents(
                                 <CardDescription className="mt-3 text-xs">Upload your first document to get started</CardDescription>
                             </div>
                         </div>
-                    </Card>) : analyzed ? <div>
+                    </Card>) : (<div>
                             <div className="mt-6 flex flex-row space-x-4.5">
                                 <Card className="flex-1 items-center gap-0 pt-8 pb-4">
-                                    <CardTitle className="font-extrabold text-2xl">1</CardTitle>
+                                    <CardTitle className="font-extrabold text-2xl">{documents.length}</CardTitle>
                                     <CardDescription>Total Documents</CardDescription>
                                 </Card>
                                 <Card className="flex-1 items-center gap-0 pt-8 pb-4">
-                                    <CardTitle className="font-extrabold text-2xl text-[#80ff00]">1</CardTitle>
+                                    <CardTitle className="font-extrabold text-2xl text-[#00ffff]">{documents.filter(d => d.aiSummary != null).length}</CardTitle>
                                     <CardDescription>Analyzed</CardDescription>
                                 </Card>
                                 <Card className="flex-1 items-center gap-0 pt-8 pb-4">
-                                    <CardTitle className="font-extrabold text-2xl">2.6 KB</CardTitle>
+                                    <CardTitle className="font-extrabold text-2xl">{formatFileSize(documents.reduce((total, d) => total + (d.fileSize ?? 0), 0))} KB</CardTitle>
                                     <CardDescription>Total Size</CardDescription>
                                 </Card>
                             </div>
@@ -251,7 +320,8 @@ export default function Documents(
                                             <CardDescription>1 analyzed &#8226; 1 pending</CardDescription>
                                         </div>
                                     </div>
-                                    <Card className="gap-0 flex flex-row justify-between mt-6 p-6">
+                                    {documents.map((doc) => (
+                                    <Card key={doc.id} className="gap-0 flex flex-row justify-between mt-6 p-6">
                                         <div className="flex flex-row">
                                             <div className="bg-blue-200 rounded p-3 px-2.5 self-start">
                                                 <FileText size={24} color="#0080ff" />
@@ -259,21 +329,25 @@ export default function Documents(
                                             <div className="ml-6">
                                                 <div className="flex flex-row justify-between">
                                                     <div>
-                                                    <CardTitle className="mb-1">Project_Proposal</CardTitle>
+                                                    <CardTitle className="mb-1">{doc.documentName}</CardTitle>
                                                     <CardDescription className="flex flex-row items-center">
-                                                        <UserRound size={12} /> <p className="mr-3 ml-1">Joseph</p>
-                                                        <Calendar size={12} /> <p className="text-xs mr-3 ml-1">01/03/2026</p>
-                                                        <File size={12} /> <p className="text-xs ml-1">2.6 KB</p>
+                                                        <UserRound size={12} /> <p className="mr-3 ml-1">{doc.user.firstName}</p>
+                                                        <Calendar size={12} /> <p className="text-xs mr-3 ml-1">{new Date(doc.createdAt).toLocaleDateString()}</p>
+                                                        <File size={12} /> {doc.fileSize && (
+                                                            <p className="text-xs ml-1">{formatFileSize(doc.fileSize)}</p>
+                                                        )}
                                                     </CardDescription>
                                                     </div>
+                                                    {doc.aiSummary && 
                                                     <Card className="rounded-2xl py-1 px-3 bg-accent-foreground text-accent ml-4 self-start mr-6">
                                                         <p className="text-xs font-medium">Analyzed</p>
-                                                    </Card>
+                                                    </Card>}
                                                 </div>
+                                                {doc.aiSummary && 
                                                 <Card className="bg-accent mr-6 p-4 pr-5 pt-5 mt-3">
                                                     <div className="flex flex-row items-center justify-between">
                                                         <div className="flex flex-row items-center">
-                                                            <div><Brain size={20} color="#80ff00" /></div>
+                                                            <div><Brain size={20} color="#00ffff" /></div>
                                                             <p className="ml-3 font-bold">AI analysis</p>
                                                             <Card className="rounded-2xl py-1 px-3 bg-accent ml-4">
                                                                 <p className="text-xs">Gemini AI</p>
@@ -286,7 +360,7 @@ export default function Documents(
                                                         </div>
                                                     </div>
                                                     <div className={expanded ? "whitespace-break-spaces" : "whitespace-break-spaces line-clamp-2"}>
-                                                        <ReactMarkdown>{analyzed_text}</ReactMarkdown>
+                                                        <ReactMarkdown>{doc.aiSummary}</ReactMarkdown>
                                                         
                                                     </div>
                                                     <hr/>
@@ -297,7 +371,7 @@ export default function Documents(
                                                         </div>
                                                         <div className="mt-2 text-xs font-semibold ml-5">analyzed</div>
                                                     </div>
-                                                </Card>
+                                                </Card>}
                                             </div>
                                         </div>
                                         <div className="flex flex-col items-start">
@@ -306,145 +380,56 @@ export default function Documents(
                                                 <Download size={18} />
                                                 <p className="ml-1.5">Download</p>
                                             </Button>
-                                            <CardDescription className="text-xs mt-1">Analyze with:</CardDescription>
+                                            <CardDescription className="text-xs mt-1">{doc.aiSummary ? "Re-analyze with" : "Analyze with:"}</CardDescription>
 
 
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger render={
                                                     <Button className="text-sm px-4 py-2 rounded-md cursor-pointer bg-accent text-accent-foreground hover:bg-accent/80 font-medium flex flex-row items-center">
-                                                        <Sparkles size={18} />
-                                                        <p className="ml-1.5">Summary</p>
+                                                        {getAnalysisIcon(selectedAnalysisType)}
+                                                        <p className="ml-1.5">{analysisTypes.find((type) => type.value === selectedAnalysisType)?.label}</p>
                                                         <ChevronDown size={18} />
                                                     </Button>
                                                 } />
                                                 <DropdownMenuContent>
-                                                    <DropdownMenuItem>
-                                                        <MessageCircle />
-                                                        Q&A
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <MessageSquare />
-                                                        Sentiment
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <Hash />
-                                                        Entities
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <List />
-                                                        Extract
-                                                    </DropdownMenuItem>
+                                                    <DropdownMenuRadioGroup value={selectedAnalysisType} onValueChange={(value) => setSelectedAnalysisType(value)}>
+                                                        <DropdownMenuRadioItem value="qna">
+                                                            <MessageCircle/>
+                                                            Q&A</DropdownMenuRadioItem>
+                                                        <DropdownMenuRadioItem value="sentiment">
+                                                            <MessageSquare/>
+                                                            Sentiment</DropdownMenuRadioItem>
+                                                        <DropdownMenuRadioItem value="entities">
+                                                            <Hash/>
+                                                            Entities</DropdownMenuRadioItem>
+                                                        <DropdownMenuRadioItem value="extract">
+                                                            <List/>
+                                                            Extract</DropdownMenuRadioItem>
+                                                    </DropdownMenuRadioGroup>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
-                                            <Button className="text-sm px-4 py-2 mt-2 rounded-md cursor-pointer bg-accent text-accent-foreground hover:bg-accent/80 font-medium flex flex-row items-center">
+                                            {doc.aiSummary ? 
+                                            <Button onClick={() => handleAnalyze(doc.id)} className="text-sm px-4 py-2 mt-2 rounded-md cursor-pointer bg-accent text-accent-foreground hover:bg-accent/80 font-medium flex flex-row items-center">
                                                 <Brain size={18} />
                                                 <p className="ml-1.5">Re-analyze</p>
-                                            </Button>
-                                            <Button className="text-sm px-4 py-2 mt-2 rounded-md cursor-pointer text-[#ff0000] bg-transparent hover:bg-red-500/20 font-medium flex flex-row items-center">
-                                                <Trash size={18} />
-                                                <p className="ml-1.5">Delete</p>
-                                            </Button>
-                                        </div>
-                                    </Card>
-
-                                </div>
-                            </Card>
-                        </div> : (
-                        <div>
-                            <div className="mt-6 flex flex-row space-x-4.5">
-                                <Card className="flex-1 items-center gap-0 pt-8 pb-4">
-                                    <CardTitle className="font-extrabold text-2xl">1</CardTitle>
-                                    <CardDescription>Total Documents</CardDescription>
-                                </Card>
-                                <Card className="flex-1 items-center gap-0 pt-8 pb-4">
-                                    <CardTitle className="font-extrabold text-2xl text-[#80ff00]">0</CardTitle>
-                                    <CardDescription>Analyzed</CardDescription>
-                                </Card>
-                                <Card className="flex-1 items-center gap-0 pt-8 pb-4">
-                                    <CardTitle className="font-extrabold text-2xl">2.6 KB</CardTitle>
-                                    <CardDescription>Total Size</CardDescription>
-                                </Card>
-                            </div>
-                            <Card className="flex flex-col p-7 pt-6 mt-6 mb-15">
-                                <div className="flex flex-col">
-                                    <div>
-                                        <div className="flex items-center">
-                                            <CardTitle className="font-bold">Documents</CardTitle>
-                                            <CardTitle className="font-bold ml-1">(0)</CardTitle>
-                                        </div>
-                                        <div>
-                                            <CardDescription>0 analyzed &#8226; 1 pending</CardDescription>
-                                        </div>
-                                    </div>
-                                    <Card className="gap-0 flex flex-row justify-between mt-6 p-6">
-                                        <div className="flex flex-row">
-                                            <div className="bg-blue-200 rounded p-3 px-2.5 self-start">
-                                                <FileText size={24} color="#0080ff" />
-                                            </div>
-                                            <div className="ml-6">
-                                                <CardTitle className="mb-1">Project_Proposal</CardTitle>
-                                                <CardDescription className="flex flex-row items-center">
-                                                    <UserRound size={12} /> <p className="mr-3 ml-1">Joseph</p>
-                                                    <Calendar size={12} /> <p className="text-xs mr-3 ml-1">01/03/2026</p>
-                                                    <File size={12} /> <p className="text-xs ml-1">2.6 KB</p>
-                                                </CardDescription>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col items-start">
-                                            
-                                            <Button className="text-sm px-4 py-2 rounded-md cursor-pointer bg-accent text-accent-foreground hover:bg-accent/80 font-medium flex flex-row items-center">
-                                                <Download size={18} />
-                                                <p className="ml-1.5">Download</p>
-                                            </Button>
-                                            <CardDescription className="text-xs mt-1">Analyze with:</CardDescription>
-
-
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger render={
-                                                    <Button className="text-sm px-4 py-2 rounded-md cursor-pointer bg-accent text-accent-foreground hover:bg-accent/80 font-medium flex flex-row items-center">
-                                                        <Sparkles size={18} />
-                                                        <p className="ml-1.5">Summary</p>
-                                                        <ChevronDown size={18} />
-                                                    </Button>
-                                                } />
-                                                <DropdownMenuContent>
-                                                    <DropdownMenuItem>
-                                                        <MessageCircle />
-                                                        Q&A
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <MessageSquare />
-                                                        Sentiment
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <Hash />
-                                                        Entities
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <List />
-                                                        Extract
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                            <Button className="text-sm px-4 py-2 mt-2 rounded-md cursor-pointer bg-accent-foreground text-accent hover:bg-accent-foreground/80 font-medium flex flex-row items-center">
+                                            </Button> :
+                                            <Button onClick={() => handleAnalyze(doc.id)} className="text-sm px-4 py-2 mt-2 rounded-md cursor-pointer bg-accent-foreground text-accent hover:bg-accent-foreground/80 font-medium flex flex-row items-center">
                                                 <Brain size={18} />
                                                 <p className="ml-1.5">Analyze</p>
-                                            </Button>
+                                            </Button>}
+
                                             <Button className="text-sm px-4 py-2 mt-2 rounded-md cursor-pointer text-[#ff0000] bg-transparent hover:bg-red-500/20 font-medium flex flex-row items-center">
                                                 <Trash size={18} />
                                                 <p className="ml-1.5">Delete</p>
                                             </Button>
-
                                         </div>
-                                    </Card>
+                                    </Card>))}
 
                                 </div>
                             </Card>
                         </div>
                     )}
-                </div>
-
-                
+                </div>               
             </div>
         </div>
     )
